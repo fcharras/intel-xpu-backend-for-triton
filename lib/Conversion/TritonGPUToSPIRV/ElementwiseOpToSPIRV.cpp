@@ -100,7 +100,7 @@ inline SmallVector<Value> unpackI32(const SmallVector<Value> &inValues,
     return inValues;
   auto encoding =
       tensorTy.getEncoding().dyn_cast<triton::gpu::DotOperandEncodingAttr>();
-  if (!(encoding && encoding.getParent().isa<MmaEncodingAttr>()))
+  if (!(encoding && encoding.getParent().isa<NvidiaMmaEncodingAttr>()))
     return inValues;
   SmallVector<Value> outValues;
   for (auto &v : inValues) {
@@ -124,7 +124,7 @@ inline SmallVector<Value> packI32(const SmallVector<Value> &inValues,
     return inValues;
   auto encoding =
       tensorTy.getEncoding().dyn_cast<triton::gpu::DotOperandEncodingAttr>();
-  if (!(encoding && encoding.getParent().isa<MmaEncodingAttr>()))
+  if (!(encoding && encoding.getParent().isa<NvidiaMmaEncodingAttr>()))
     return inValues;
   SmallVector<Value> outValues;
   auto eltType = typeConverter->convertType(tensorTy.getElementType());

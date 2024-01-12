@@ -49,7 +49,7 @@ public:
     if (isaDistributedLayout(srcLayout) && isaDistributedLayout(dstLayout)) {
       return lowerDistributedToDistributed(op, adaptor, rewriter);
     }
-    if (srcLayout.isa<MmaEncodingAttr>() &&
+    if (srcLayout.isa<NvidiaMmaEncodingAttr>() &&
         dstLayout.isa<DotOperandEncodingAttr>()) {
       return lowerMmaToDotOperand(op, adaptor, rewriter);
     }
@@ -288,19 +288,19 @@ private:
 
     // For Volta, all the coords for a CTA are calculated.
     bool isSrcMmaV1{}, isDstMmaV1{};
-    if (auto mmaLayout = srcLayout.dyn_cast<MmaEncodingAttr>()) {
+    if (auto mmaLayout = srcLayout.dyn_cast<NvidiaMmaEncodingAttr>()) {
       isSrcMmaV1 = mmaLayout.isVolta();
     }
     if (auto sliceLayout = srcLayout.dyn_cast<SliceEncodingAttr>()) {
-      isSrcMmaV1 = sliceLayout.getParent().isa<MmaEncodingAttr>() &&
-                   sliceLayout.getParent().cast<MmaEncodingAttr>().isVolta();
+      isSrcMmaV1 = sliceLayout.getParent().isa<NvidiaMmaEncodingAttr>() &&
+                   sliceLayout.getParent().cast<NvidiaMmaEncodingAttr>().isVolta();
     }
-    if (auto mmaLayout = dstLayout.dyn_cast<MmaEncodingAttr>()) {
+    if (auto mmaLayout = dstLayout.dyn_cast<NvidiaMmaEncodingAttr>()) {
       isDstMmaV1 = mmaLayout.isVolta();
     }
     if (auto sliceLayout = dstLayout.dyn_cast<SliceEncodingAttr>()) {
-      isDstMmaV1 = sliceLayout.getParent().isa<MmaEncodingAttr>() &&
-                   sliceLayout.getParent().cast<MmaEncodingAttr>().isVolta();
+      isDstMmaV1 = sliceLayout.getParent().isa<NvidiaMmaEncodingAttr>() &&
+                   sliceLayout.getParent().cast<NvidiaMmaEncodingAttr>().isVolta();
     }
 
     for (unsigned d = 0; d < rank; ++d) {
@@ -336,7 +336,7 @@ private:
         barrier();
       if (srcLayout.isa<BlockedEncodingAttr>() ||
           srcLayout.isa<SliceEncodingAttr>() ||
-          srcLayout.isa<MmaEncodingAttr>()) {
+          srcLayout.isa<NvidiaMmaEncodingAttr>()) {
         if (isSrcMmaV1)
           processReplicaForMMAV1(loc, rewriter, /*stNotRd*/ true, srcTy,
                                  multiDimRepId, inVec, paddedRepShape, outOrd,
@@ -353,7 +353,7 @@ private:
       barrier();
       if (dstLayout.isa<BlockedEncodingAttr>() ||
           dstLayout.isa<SliceEncodingAttr>() ||
-          dstLayout.isa<MmaEncodingAttr>()) {
+          dstLayout.isa<NvidiaMmaEncodingAttr>()) {
         if (isDstMmaV1)
           processReplicaForMMAV1(loc, rewriter, /*stNotRd*/ false, dstTy,
                                  multiDimRepId, outVec, paddedRepShape, outOrd,

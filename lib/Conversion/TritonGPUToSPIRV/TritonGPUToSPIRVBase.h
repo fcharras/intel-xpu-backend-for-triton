@@ -20,7 +20,7 @@ using ::mlir::spirv::delinearize;
 using ::mlir::spirv::SharedMemoryObject;
 using ::mlir::triton::gpu::BlockedEncodingAttr;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
-using ::mlir::triton::gpu::MmaEncodingAttr;
+using ::mlir::triton::gpu::NvidiaMmaEncodingAttr;
 using ::mlir::triton::gpu::SliceEncodingAttr;
 
 namespace mlir {
@@ -465,7 +465,7 @@ public:
            "Unexpected rank of loadSharedToDistributed");
     auto srcTy = src.getType().cast<RankedTensorType>();
     auto dstDistributedLayout = dstTy.getEncoding();
-    if (auto mmaLayout = dstDistributedLayout.dyn_cast<MmaEncodingAttr>()) {
+    if (auto mmaLayout = dstDistributedLayout.dyn_cast<NvidiaMmaEncodingAttr>()) {
       assert((!mmaLayout.isVolta()) &&
              "ConvertLayout Shared->MMAv1 is not supported yet");
     }
@@ -520,7 +520,7 @@ public:
            "Unexpected rank of storeDistributedToShared");
     auto dstTy = dst.getType().cast<RankedTensorType>();
     auto srcDistributedLayout = srcTy.getEncoding();
-    if (auto mmaLayout = srcDistributedLayout.dyn_cast<MmaEncodingAttr>()) {
+    if (auto mmaLayout = srcDistributedLayout.dyn_cast<NvidiaMmaEncodingAttr>()) {
       assert((!mmaLayout.isVolta()) &&
              "ConvertLayout MMAv1->Shared is not supported yet");
     }
