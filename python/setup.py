@@ -107,7 +107,8 @@ def open_url(url):
 
 
 def get_thirdparty_packages(triton_cache_path):
-    packages = [get_pybind11_package_info(), get_llvm_package_info()]
+    # packages = [get_pybind11_package_info(), get_llvm_package_info()]
+    packages = []
     thirdparty_cmake_args = []
     for p in packages:
         package_root_dir = os.path.join(triton_cache_path, p.package)
@@ -233,7 +234,8 @@ class CMakeBuild(build_ext):
 
     def build_extension(self, ext):
         lit_dir = shutil.which('lit')
-        ninja_dir = shutil.which('ninja')
+        # ninja_dir = shutil.which('ninja')
+        ninja_dir = "/home/chengjun/clion-2023.1.3/bin/ninja/linux/x64/ninja"
         user_home = os.getenv("HOME") or os.getenv("USERPROFILE") or \
             os.getenv("HOMEPATH") or None
         if not user_home:
@@ -286,7 +288,7 @@ class CMakeBuild(build_ext):
         else:
             cmake_args += ["-DCMAKE_BUILD_TYPE=" + cfg]
             max_jobs = os.getenv("MAX_JOBS", str(2 * os.cpu_count()))
-            build_args += ['-j' + max_jobs]
+            build_args += ['-j' + "2"]
 
         if check_env_flag("TRITON_BUILD_WITH_CLANG_LLD"):
             cmake_args += [
@@ -319,7 +321,10 @@ class CMakeBuild(build_ext):
 
         env = os.environ.copy()
         cmake_dir = get_cmake_dir()
-        subprocess.check_call(["cmake", self.base_dir] + cmake_args, cwd=cmake_dir, env=env)
+        # subprocess.check_call(["cmake", self.base_dir] + cmake_args, cwd=cmake_dir, env=env)
+        print(["cmake", self.base_dir] + cmake_args)
+        print(cmake_dir)
+        print(["cmake", "--build", "."] + build_args)
         subprocess.check_call(["cmake", "--build", "."] + build_args, cwd=cmake_dir)
         subprocess.check_call(["cmake", "--build", ".", "--target", "mlir-doc"], cwd=cmake_dir)
 

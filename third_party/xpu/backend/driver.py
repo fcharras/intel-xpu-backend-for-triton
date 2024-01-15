@@ -82,10 +82,11 @@ class XPUUtils(object):
            if (code != ZE_RESULT_SUCCESS)
            {
               const char* prefix = "Triton Error [ZE]: ";
-              std::string str = std::to_string(code);
+              std::stringstream ss;                                                    
+              ss << std::hex << code << std::endl;          
               char err[1024] = {0};
               strcat(err, prefix);
-              strcat(err, str.c_str());
+              strcat(err, ss.str().c_str());
               PyErr_SetString(PyExc_RuntimeError, err);
            }
         }
@@ -194,13 +195,13 @@ class XPUUtils(object):
         bool update(sycl::queue sycl_queue) {
             // Get l0-context
             auto sycl_context = sycl_queue.get_context();
-            ze_context_handle_t hCtxt = get_native<sycl::backend::level_zero>(sycl_context);
+            ze_context_handle_t hCtxt = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(sycl_context);
 	        // Get l0-device
             std::vector<sycl::device> sycl_devices = sycl_context.get_devices();
-            ze_device_handle_t hDev = get_native<sycl::backend::level_zero>(sycl_devices[0]);
+            ze_device_handle_t hDev = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(sycl_devices[0]);
             // Get l0-queue
             bool immediate_cmd_list = false;
-            std::variant<ze_command_queue_handle_t, ze_command_list_handle_t> queue_var = get_native<sycl::backend::level_zero>(sycl_queue);
+            std::variant<ze_command_queue_handle_t, ze_command_list_handle_t> queue_var = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(sycl_queue);
             auto l0_queue = std::get_if<ze_command_queue_handle_t>(&queue_var);
             if (l0_queue == nullptr) {
                 auto imm_cmd_list = std::get_if<ze_command_list_handle_t>(&queue_var);
@@ -218,7 +219,7 @@ class XPUUtils(object):
             context = sycl_queue_map[sycl_queue].context;
             uint32_t deviceCount = std::min(sycl_devices.size(), devices.size());
             for (uint32_t i = 0; i < deviceCount; ++i) {
-                devices[i] = sycl::get_native<sycl::backend::level_zero>(sycl_devices[i]);
+                devices[i] = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(sycl_devices[i]);
             }
 
             return true;
@@ -226,8 +227,13 @@ class XPUUtils(object):
 
         static PyObject* initContext(PyObject* self, PyObject* args) {
             void* queue;
-            if(!PyArg_ParseTuple(args, "K", &queue))
-                return NULL;
+            
+          Py_ssize_t num_args = args ? (Py_ssize_t)PyTuple_Size(args) : 0;
+          assert(num_args == 1 && "expected exactly 1 arguments");
+        
+          PyObject* arg0 = PyTuple_GET_ITEM(args, 0);
+          queue = PyCapsule_GetPointer(arg0, "torch.xpu.Stream.sycl_queue");
+          
             sycl::queue* sycl_queue = static_cast<sycl::queue*>(queue);
             if(sycl_queue_map.find(*sycl_queue) == sycl_queue_map.end()) {
                 update(*sycl_queue);
@@ -252,8 +258,11 @@ class XPUUtils(object):
 
         static PyObject* initDevices(PyObject* self, PyObject *args) {
             void* queue;
-            if(!PyArg_ParseTuple(args, "K", &queue))
-                return NULL;
+          Py_ssize_t num_args = args ? (Py_ssize_t)PyTuple_Size(args) : 0;
+          assert(num_args == 1 && "expected exactly 1 arguments");
+        
+          PyObject* arg0 = PyTuple_GET_ITEM(args, 0);
+          queue = PyCapsule_GetPointer(arg0, "torch.xpu.Stream.sycl_queue");
             sycl::queue* sycl_queue = static_cast<sycl::queue*>(queue);
 
             auto sycl_context = sycl_queue->get_context();
@@ -264,7 +273,7 @@ class XPUUtils(object):
             // Retrieve devices
             uint32_t deviceCount = sycl_devices.size();
             for (uint32_t i = 0; i < deviceCount; ++i) {
-                devices.push_back(sycl::get_native<sycl::backend::level_zero>(sycl_devices[i]));
+                devices.push_back(sycl::get_native<sycl::backend::ext_oneapi_level_zero>(sycl_devices[i]));
             }
 
             // npy_intp dims[1];
@@ -292,8 +301,11 @@ class XPUUtils(object):
         }
         static PyObject* getL0Queue(PyObject* self, PyObject* args) {
             void* queue;
-            if(!PyArg_ParseTuple(args, "K", &queue))
-                return NULL;
+          Py_ssize_t num_args = args ? (Py_ssize_t)PyTuple_Size(args) : 0;
+          assert(num_args == 1 && "expected exactly 1 arguments");
+        
+          PyObject* arg0 = PyTuple_GET_ITEM(args, 0);
+          queue = PyCapsule_GetPointer(arg0, "torch.xpu.Stream.sycl_queue");
             sycl::queue* sycl_queue = static_cast<sycl::queue*>(queue);
             if(sycl_queue_map.find(*sycl_queue) == sycl_queue_map.end()) {
                 update(*sycl_queue);
@@ -302,8 +314,11 @@ class XPUUtils(object):
         }
         static PyObject* getL0DevPtr(PyObject* self, PyObject* args) {
             void* queue;
-            if(!PyArg_ParseTuple(args, "K", &queue))
-                return NULL;
+          Py_ssize_t num_args = args ? (Py_ssize_t)PyTuple_Size(args) : 0;
+          assert(num_args == 1 && "expected exactly 1 arguments");
+        
+          PyObject* arg0 = PyTuple_GET_ITEM(args, 0);
+          queue = PyCapsule_GetPointer(arg0, "torch.xpu.Stream.sycl_queue");
             sycl::queue* sycl_queue = static_cast<sycl::queue*>(queue);
             if(sycl_queue_map.find(*sycl_queue) == sycl_queue_map.end()) {
                 update(*sycl_queue);
@@ -312,8 +327,12 @@ class XPUUtils(object):
         }
         static PyObject* getL0CtxtPtr(PyObject* self, PyObject* args) {
             void* queue;
-            if(!PyArg_ParseTuple(args, "K", &queue))
-                return NULL;
+            
+          Py_ssize_t num_args = args ? (Py_ssize_t)PyTuple_Size(args) : 0;
+          assert(num_args == 1 && "expected exactly 1 arguments");
+        
+          PyObject* arg0 = PyTuple_GET_ITEM(args, 0);
+          queue = PyCapsule_GetPointer(arg0, "torch.xpu.Stream.sycl_queue");
             sycl::queue* sycl_queue = static_cast<sycl::queue*>(queue);
             if(sycl_queue_map.find(*sycl_queue) == sycl_queue_map.end()) {
                 update(*sycl_queue);
