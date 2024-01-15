@@ -13,6 +13,7 @@ using ::mlir::triton::gpu::getShapePerCTATile;
 using ::mlir::triton::gpu::getSizePerThread;
 using ::mlir::triton::gpu::getTotalElemsPerThread;
 using ::mlir::triton::gpu::isaDistributedLayout;
+using ::mlir::triton::gpu::NvidiaMmaEncodingAttr;
 using ::mlir::triton::gpu::SharedEncodingAttr;
 
 // Forward declarations
@@ -286,23 +287,6 @@ private:
     auto dstShapePerCTATile = getShapePerCTATile(dstLayout, shape);
     auto shapePerCTA = getShapePerCTA(srcLayout, shape);
 
-    // For Volta, all the coords for a CTA are calculated.
-    bool isSrcMmaV1{}, isDstMmaV1{};
-    if (auto mmaLayout = srcLayout.dyn_cast<NvidiaMmaEncodingAttr>()) {
-      isSrcMmaV1 = mmaLayout.isVolta();
-    }
-    if (auto sliceLayout = srcLayout.dyn_cast<SliceEncodingAttr>()) {
-      isSrcMmaV1 = sliceLayout.getParent().isa<NvidiaMmaEncodingAttr>() &&
-                   sliceLayout.getParent().cast<NvidiaMmaEncodingAttr>().isVolta();
-    }
-    if (auto mmaLayout = dstLayout.dyn_cast<NvidiaMmaEncodingAttr>()) {
-      isDstMmaV1 = mmaLayout.isVolta();
-    }
-    if (auto sliceLayout = dstLayout.dyn_cast<SliceEncodingAttr>()) {
-      isDstMmaV1 = sliceLayout.getParent().isa<NvidiaMmaEncodingAttr>() &&
-                   sliceLayout.getParent().cast<NvidiaMmaEncodingAttr>().isVolta();
-    }
-
     for (unsigned d = 0; d < rank; ++d) {
       unsigned inPerCTA =
           std::min<unsigned>(shapePerCTA[d], srcShapePerCTATile[d]);
@@ -337,11 +321,6 @@ private:
       if (srcLayout.isa<BlockedEncodingAttr>() ||
           srcLayout.isa<SliceEncodingAttr>() ||
           srcLayout.isa<NvidiaMmaEncodingAttr>()) {
-        if (isSrcMmaV1)
-          processReplicaForMMAV1(loc, rewriter, /*stNotRd*/ true, srcTy,
-                                 multiDimRepId, inVec, paddedRepShape, outOrd,
-                                 vals, smemBase, shape);
-        else
           processReplica(loc, rewriter, /*stNotRd*/ true, srcTy,
                          inNumCTAsEachRep, multiDimRepId, inVec, paddedRepShape,
                          origRepShape, outOrd, vals, smemBase);
@@ -354,11 +333,6 @@ private:
       if (dstLayout.isa<BlockedEncodingAttr>() ||
           dstLayout.isa<SliceEncodingAttr>() ||
           dstLayout.isa<NvidiaMmaEncodingAttr>()) {
-        if (isDstMmaV1)
-          processReplicaForMMAV1(loc, rewriter, /*stNotRd*/ false, dstTy,
-                                 multiDimRepId, outVec, paddedRepShape, outOrd,
-                                 outVals, smemBase, shape, /*isDestMma=*/true);
-        else
           processReplica(loc, rewriter, /*stNotRd*/ false, dstTy,
                          outNumCTAsEachRep, multiDimRepId, outVec,
                          paddedRepShape, origRepShape, outOrd, outVals,

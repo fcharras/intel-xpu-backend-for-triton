@@ -6,8 +6,10 @@
 #include "mlir/Support/FileUtilities.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
+#include "triton/Dialect/TritonNvidiaGPU/Transforms/Passes.h"
 
 #include <Python.h>
+#include <any>
 #include <cctype>
 #include <fstream>
 #include <optional>
@@ -36,6 +38,32 @@
 #include <mlir/Transforms/Passes.h>
 
 namespace py = pybind11;
+
+std::map<std::string, std::any> convert_dict(py::dict d) {
+  std::map<std::string, std::any> result;
+  for (std::pair<py::handle, py::handle> item : d) {
+    auto key = item.first.cast<std::string>();
+
+    if (py::isinstance<pybind11::str>(item.second)) {
+      auto value = item.second.cast<std::string>();
+      result[key] = value;
+    } else if (py::isinstance<pybind11::int_>(item.second)) {
+      auto value = item.second.cast<int>();
+      result[key] = value;
+    } else if (py::isinstance<pybind11::bool_>(item.second)) {
+      auto value = item.second.cast<bool>();
+      result[key] = value;
+    } else if (py::isinstance<pybind11::none>(item.second)) {
+      continue;
+    } else {
+      throw py::cast_error(
+          "Unable to cast XPUOptions of type " +
+          py::str(py::type::handle_of(item.second)).cast<std::string>() +
+          " to C++ type '");
+    }
+  }
+  return result;
+}
 
 void init_triton_translation(py::module &m) {
 
@@ -164,38 +192,16 @@ void init_triton_translation(py::module &m) {
 
   m.def(
       "translate_triton_gpu_to_spirv",
-      [](const std::string &ttgir, py::dict computeCapability) {
-        mlir::MLIRContext context;
+      [](mlir::ModuleOp &op, py::dict computeCapability) {
+        auto capabilities = convert_dict(computeCapability);
 
-        // initialize registry
-        // note: we initialize llvm for undef
-        mlir::DialectRegistry registry;
-        registry.insert<mlir::triton::TritonDialect,
-                        mlir::triton::gpu::TritonGPUDialect,
-                        mlir::math::MathDialect, mlir::arith::ArithDialect,
-                        mlir::index::IndexDialect, mlir::scf::SCFDialect,
-                        mlir::cf::ControlFlowDialect>();
-        context.appendDialectRegistry(registry);
-        context.loadAllAvailableDialects();
-
-        auto capabilities =
-            computeCapability.cast<std::map<std::string, int>>();
-
-        // parse module
-        mlir::OwningOpRef<mlir::ModuleOp> module =
-            mlir::parseSourceString<mlir::ModuleOp>(ttgir, &context);
-        if (!module)
-          throw std::runtime_error("Parse MLIR file failed.");
-        auto spirvModule = ::mlir::triton::translateTritonGPUToSPIRVIR(
-            *module, std::move(capabilities));
+        auto spirvModule =
+            ::mlir::triton::translateTritonGPUToSPIRVIR(op, capabilities);
         if (spirvModule.empty())
           throw std::runtime_error(
               "Failed to translate TritonGPU to SPIRV IR.");
 
-        auto shared =
-            (*module)->getAttrOfType<mlir::IntegerAttr>("triton_gpu.shared");
-        return py::make_tuple<py::return_value_policy::take_ownership>(
-            spirvModule, shared.getInt());
+        return spirvModule;
       },
       ret::take_ownership);
 
@@ -205,8 +211,35 @@ void init_triton_translation(py::module &m) {
           ::mlir::triton::addExternalLibs(op, names, paths);
         });
 
+  // m.def(
+  //     "translate_llvmir_to_spirv",
+  //     [](const std::string &llvmIR, py::dict computeCapability) -> py::object {
+  //       // create LLVM module from C++
+  //       llvm::LLVMContext context;
+  //       std::unique_ptr<llvm::MemoryBuffer> buffer =
+  //           llvm::MemoryBuffer::getMemBuffer(llvmIR.c_str());
+  //       llvm::MemoryBuffer::getMemBuffer(llvmIR.c_str());
+  //       llvm::SMDiagnostic error;
+  //       std::unique_ptr<llvm::Module> module =
+  //           llvm::parseIR(buffer->getMemBufferRef(), error, context);
+  //       if (!module) {
+  //         llvm::report_fatal_error(
+  //             "failed to parse IR: " + error.getMessage() +
+  //             "lineno: " + std::to_string(error.getLineNo()));
+  //       }
+  //       std::string spvbin;
+  //       llvm::raw_string_ostream os(spvbin);
+
+  //       if (failed(::mlir::triton::translateLLVMIRToSPIRV(*module, os)))
+  //         llvm::report_fatal_error("Failed to assemble SPIRV.");
+
+  //       py::bytes bytes(spvbin);
+  //       return std::move(bytes);
+  //     });
+
   m.def("compile_spirv_to_spvbin",
-        [](const std::string &spirvCode, int capability) -> py::object {
+        [](const std::string &spirvCode,
+           py::dict computeCapability) -> py::object {
           std::string spvbin;
           llvm::raw_string_ostream os(spvbin);
 
@@ -284,14 +317,22 @@ void init_triton_translation(py::module &m) {
            })
       .def(
           "add_convert_triton_to_tritongpu_pass",
-          [](mlir::PassManager &self, int numWarps, int threadsPerWarp) {
+          [](mlir::PassManager &self, int numWarps, int threadsPerWarp,
+             int numCTAs, py::dict computeCapability) {
             self.addPass(mlir::triton::createConvertTritonToTritonGPUPass(
                 numWarps, threadsPerWarp));
           },
-          py::arg("numWarps") = 4, py::arg("threadsPerWarp") = 32)
+          py::arg("numWarps") = 4, py::arg("threadsPerWarp") = 32,
+          py::arg("numCTAs") = 1, py::arg("computeCapability") = py::dict{})
       .def("add_tritongpu_pipeline_pass",
-           [](mlir::PassManager &self, int numStages) {
-             self.addPass(mlir::createTritonGPUPipelinePass(numStages));
+           [](mlir::PassManager &self, int numStages, int numWarps, int numCTAs,
+              py::dict computeCapability) {
+             self.addPass(mlir::createTritonGPUPipelinePass(numStages, numWarps,
+                                                            numCTAs, 80));
+           })
+      .def("add_tritongpu_rewrite_tensor_pointer_pass",
+           [](mlir::PassManager &self, py::dict computeCapability) {
+             self.addPass(mlir::createTritonGPURewriteTensorPointerPass(80));
            })
       .def("add_tritongpu_prefetch_pass",
            [](mlir::PassManager &self) {
@@ -316,6 +357,24 @@ void init_triton_translation(py::module &m) {
       .def("add_scf_to_cfg", [](mlir::PassManager &self) {
         self.addPass(mlir::createConvertSCFToCFPass());
       });
+
+  m.def("get_shared_memory_size", [](mlir::ModuleOp mod) {
+    auto shared = mod->getAttrOfType<mlir::IntegerAttr>("triton_gpu.shared");
+    assert(shared);
+    return shared.getInt();
+  });
+  m.def("get_threads_per_warp", [](mlir::ModuleOp mod) {
+    auto threads_per_warp =
+        mod->getAttrOfType<mlir::IntegerAttr>("triton_gpu.threads-per-warp");
+    assert(threads_per_warp);
+    return threads_per_warp.getInt();
+  });
+  m.def("get_num_warps", [](mlir::ModuleOp mod) {
+    auto num_warps =
+        mod->getAttrOfType<mlir::IntegerAttr>("triton_gpu.num-warps");
+    assert(num_warps);
+    return num_warps.getInt();
+  });
 }
 
 void init_intel_xpu_backend_for_triton(py::module &m) {

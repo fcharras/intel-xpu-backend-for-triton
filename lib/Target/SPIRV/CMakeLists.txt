@@ -15,4 +15,5 @@ add_mlir_translation_library(TritonSPIRV
         # spirv tools
         SPIRV-Tools
         SPIRV-Tools-link
+        # LLVMSPIRVLib
         )

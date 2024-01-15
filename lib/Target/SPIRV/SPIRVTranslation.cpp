@@ -1,4 +1,5 @@
 #include "mlir/Conversion/Passes.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
@@ -22,10 +23,54 @@
 #include <dlfcn.h>
 #include <filesystem>
 
+#include "triton/Target/SPIRV/SPIRVTranslation.h"
+
 namespace mlir {
 namespace triton {
 
 static spv_target_env defaultSPIRVTargetEnv = SPV_ENV_OPENCL_2_2;
+
+// LogicalResult llvmToSPIRV(llvm::Module &module, raw_ostream &output) {
+
+//   llvm::LLVMContext context;
+
+//   // create triple
+//   std::string triple = "spir64-unknown-unknown";
+
+//   // create machine
+//   module.setTargetTriple(triple);
+
+//   // translate module to SPIRV IR
+//   std::string Err;
+//   SPIRV::TranslatorOpts opts;
+//   opts.enableAllExtensions();
+//   SPIRV::TranslatorOpts::ArgList allowIntr;
+//   allowIntr.push_back("llvm.genx");
+//   opts.setSPIRVAllowUnknownIntrinsics(allowIntr);
+//   bool Success = false;
+//   std::ostringstream os;
+//   Success = writeSpirv(&module, opts, os, Err);
+
+//   if (!Success) {
+//     llvm::report_fatal_error(
+//         StringRef("failed to save LLVM as SPIR-V: " + Err));
+//   }
+
+//   std::string spirvIR = os.str();
+//   if (::triton::tools::getBoolEnv("MLIR_ENABLE_DUMP")) {
+//     std::string spirvDisassemble;
+//     llvm::raw_string_ostream disassemble(spirvDisassemble);
+//     if (!failed(disassembleSPIRV((uint32_t *)spirvIR.c_str(),
+//                                  spirvIR.length() / sizeof(uint32_t),
+//                                  disassemble)))
+//       llvm::dbgs() << "SPIRV IR:\n" << spirvDisassemble << "\n";
+//   }
+
+//   output << spirvIR;
+//   output.flush();
+
+//   return mlir::success();
+// }
 
 LogicalResult assembleSPIRV(std::string spirvCode, raw_ostream &output) {
   auto DisMessagePrinter = [](spv_message_level_t Level, const char *source,
@@ -161,8 +206,7 @@ static bool optimizeSPIRVModule(std::vector<uint32_t> &binary) {
   auto runOptimizer = [&](const std::vector<std::string> &flags,
                           std::vector<uint32_t> &binary) {
     if (!optimizer.RegisterPassesFromFlags(flags)) {
-      llvm::errs() << " spirv opt error: pass register failed"
-                   << "\n";
+      llvm::errs() << " spirv opt error: pass register failed" << "\n";
       return false;
     }
 
@@ -419,9 +463,9 @@ static LogicalResult translateTritonSPIRVToSPIRVIR(ModuleOp module,
   return mlir::success();
 }
 
-std::string
-translateTritonGPUToSPIRVIR(mlir::ModuleOp module,
-                            std::map<std::string, int> computeCapability) {
+std::string translateTritonGPUToSPIRVIR(
+    mlir::ModuleOp module,
+    const std::map<std::string, std::any> &computeCapability) {
   mlir::PassManager pm(module->getContext());
   mlir::registerPassManagerCLOptions();
   if (failed(applyPassManagerCLOptions(pm))) {
@@ -431,7 +475,8 @@ translateTritonGPUToSPIRVIR(mlir::ModuleOp module,
   auto printingFlags = mlir::OpPrintingFlags();
   printingFlags.elideLargeElementsAttrs(16);
   pm.enableIRPrinting(
-      /*shouldPrintBeforePass=*/nullptr,
+      /*shouldPrintBeforePass=*/
+      nullptr,
       /*shouldPrintAfterPass=*/
       [](mlir::Pass *pass, mlir::Operation *) {
         return ::triton::tools::getBoolEnv("MLIR_ENABLE_DUMP");
@@ -441,7 +486,7 @@ translateTritonGPUToSPIRVIR(mlir::ModuleOp module,
       /*printAfterOnlyOnFailure*/ false, llvm::dbgs(), printingFlags);
 
   pm.addPass(mlir::createConvertSCFToCFPass());
-  pm.addPass(createConvertTritonGPUToSPIRVPass(std::move(computeCapability)));
+  pm.addPass(createConvertTritonGPUToSPIRVPass(computeCapability));
   //  pm.addPass(mlir::arith::createConvertArithToSPIRVPass());
   // Canonicalize to eliminate the remaining UnrealizedConversionCastOp
   pm.addPass(mlir::createReconcileUnrealizedCastsPass());
@@ -465,6 +510,16 @@ translateTritonGPUToSPIRVIR(mlir::ModuleOp module,
 
   return spirvModule;
 }
+
+// LogicalResult translateLLVMIRToSPIRV(llvm::Module &module,
+//                                      raw_ostream &output) {
+
+//   if (failed(llvmToSPIRV(module, output))) {
+//     llvm::report_fatal_error(StringRef("Translate to SPIRV IR failed"));
+//   }
+
+//   return mlir::success();
+// }
 
 void addExternalLibs(mlir::ModuleOp &module,
                      const std::vector<std::string> &names,
