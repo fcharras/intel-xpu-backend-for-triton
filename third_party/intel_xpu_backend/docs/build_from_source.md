@@ -93,8 +93,8 @@ The difference between these two PyTorch is that the Intel version has some priv
 
 ## 3.2. Build Triton
 
-```
-git clone https://github.com/openai/triton triton
+```Bash
+git clone -b triton-fork/release/2.2.x https://github.com/intel/intel-xpu-backend-for-triton.git triton
 ```
 
 
@@ -107,17 +107,7 @@ pip install pybind11
 Build Triton
 
 ```Bash
-cd triton
-git submodule sync
-git submodule update --init --recursive --jobs 0
-# check to latest third_party backend if needed
-cd third_party/intel_xpu_backend
-git checkout main && git pull
-# check triton commit to verified working commit
-cd ../..
-git checkout `cat third_party/intel_xpu_backend/triton_hash.txt`
-# cd to python folder
-cd python
+cd triton/python
 TRITON_CODEGEN_INTEL_XPU_BACKEND=1 python setup.py develop
 ```
 
