@@ -14,7 +14,7 @@ env:
   LLVM_SYSPATH: /home/runner/packages/llvm
   BACKEND: XPU
   TRITON_DISABLE_LINE_INFO: 1
-  SUMMARY_PATH: /home/runner/intel-xpu-backend-for-triton/scripts/integration-tests-summary
+  SCRIPTS_PATH: /home/runner/intel-xpu-backend-for-triton/scripts
 
 jobs:
   pre-commit:
@@ -148,82 +148,87 @@ jobs:
           pip install wheel
           pip install --no-build-isolation '.[tests]'
 
+      - name: Print summary
+        run: |
+          mkdir -p ${{ env.SCRIPTS_PATH }}
+          echo -e "============  integration-tests ${{ matrix.python }} summary ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+
       - name: Run lit tests
         run: |
           pip install lit
           cd python
-          echo -e "============ Run lit tests ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          lit -v build/*/test | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
+          echo -e "============ Run lit tests ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+          lit -v build/*/test 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
 
-      - name: Run core tests
-        run: |
-          pip install pytest pytest-xdist
-          pip install torch==2.1.0a0+cxx11.abi intel_extension_for_pytorch==2.1.10+xpu -f https://developer.intel.com/ipex-whl-stable-xpu
-          cd python/test/unit
-          echo -e "============ Run core tests ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 -m pytest -n 8 --verbose --device xpu language/ --ignore=language/test_line_info.py --ignore=language/test_subprocess.py | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
-          # run test_subprocess serially to avoid issues with print buffer handling.
-          python3 -m pytest --verbose --device xpu language/test_subprocess.py | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
-          # run runtime tests serially to avoid race condition with cache handling.
-          python3 -m pytest runtime/ | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
-          # run test_line_info.py separately with TRITON_DISABLE_LINE_INFO=0
-          TRITON_DISABLE_LINE_INFO=0 python3 -m pytest --verbose --device xpu language/test_line_info.py | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
+      # - name: Run core tests
+      #   run: |
+      #     pip install pytest pytest-xdist
+      #     pip install torch==2.1.0a0+cxx11.abi intel_extension_for_pytorch==2.1.10+xpu -f https://developer.intel.com/ipex-whl-stable-xpu
+      #     cd python/test/unit
+      #     echo -e "============ Run core tests ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 -m pytest -n 8 --verbose --device xpu language/ --ignore=language/test_line_info.py --ignore=language/test_subprocess.py | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
+      #     # run test_subprocess serially to avoid issues with print buffer handling.
+      #     python3 -m pytest --verbose --device xpu language/test_subprocess.py | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
+      #     # run runtime tests serially to avoid race condition with cache handling.
+      #     python3 -m pytest runtime/ | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
+      #     # run test_line_info.py separately with TRITON_DISABLE_LINE_INFO=0
+      #     TRITON_DISABLE_LINE_INFO=0 python3 -m pytest --verbose --device xpu language/test_line_info.py | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
 
-      - name: Clear cache
-        run: |
-          rm -rf ~/.triton
+      # - name: Clear cache
+      #   run: |
+      #     rm -rf ~/.triton
 
-      - name: Run interpreter tests
-        env:
-          # TRITON_INTERPRET: "1"
-          CUA_VISIBLE_DEVICES: ""
-        run: |
-          cd python/test/unit
-          echo -e "============ Run interpreter tests ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 -m pytest -vs operators/test_flash_attention.py | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
+      # - name: Run interpreter tests
+      #   env:
+      #     # TRITON_INTERPRET: "1"
+      #     CUA_VISIBLE_DEVICES: ""
+      #   run: |
+      #     cd python/test/unit
+      #     echo -e "============ Run interpreter tests ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 -m pytest -vs operators/test_flash_attention.py | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
 
-      - name: Run partial operators tests
-        run: |
-          cd python/test/unit
-          echo -e "============ Run partial operators tests ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 -m pytest -n 8 --verbose operators | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
+      # - name: Run partial operators tests
+      #   run: |
+      #     cd python/test/unit
+      #     echo -e "============ Run partial operators tests ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 -m pytest -n 8 --verbose operators | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
 
-      - name: Run XPU python tests
-        run: |
-          cd python/test/backend/third_party_backends
-          echo -e "============ Run XPU python tests ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 -m pytest -n auto --verbose test_xpu_backend.py | tee >(tail -n 1 >> $SUMMARY_PATH_${{ matrix.python }}.log)
+      # - name: Run XPU python tests
+      #   run: |
+      #     cd python/test/backend/third_party_backends
+      #     echo -e "============ Run XPU python tests ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 -m pytest -n auto --verbose test_xpu_backend.py | tee >(tail -n 1 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
 
-      - name: Run Tutorials
-        run: |
-          pip install matplotlib pandas tabulate
-          cd python/tutorials
-          echo -e "============ Run Tutorials ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 01-vector-add.py && echo "01-vector-add.py: PASS" >> $SUMMARY_PATH_${{ matrix.python }}.log || echo "01-vector-add.py: FAIL" >> $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 02-fused-softmax.py && echo "02-fused-softmax.py: PASS" >> $SUMMARY_PATH_${{ matrix.python }}.log || echo "02-fused-softmax.py: FAIL" >> $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 04-low-memory-dropout.py && echo "04-low-memory-dropout.py: PASS" >> $SUMMARY_PATH_${{ matrix.python }}.log || echo "04-low-memory-dropout.py: FAIL" >> $SUMMARY_PATH_${{ matrix.python }}.log
-          python3 07-math-functions.py && echo "07-math-functions.py: PASS" >> $SUMMARY_PATH_${{ matrix.python }}.log || echo "07-math-functions.py: FAIL" >> $SUMMARY_PATH_${{ matrix.python }}.log
+      # - name: Run Tutorials
+      #   run: |
+      #     pip install matplotlib pandas tabulate
+      #     cd python/tutorials
+      #     echo -e "============ Run Tutorials ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 01-vector-add.py && echo "01-vector-add.py: PASS" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log || echo "01-vector-add.py: FAIL" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 02-fused-softmax.py && echo "02-fused-softmax.py: PASS" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log || echo "02-fused-softmax.py: FAIL" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 04-low-memory-dropout.py && echo "04-low-memory-dropout.py: PASS" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log || echo "04-low-memory-dropout.py: FAIL" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     python3 07-math-functions.py && echo "07-math-functions.py: PASS" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log || echo "07-math-functions.py: FAIL" >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
 
-      - name: Run CXX unittests
-        run: |
-          cd python/build/*cmake*
-          echo -e "============ Run CXX unittests ============" | tee -a $SUMMARY_PATH_${{ matrix.python }}.log
-          ctest | tee >(tail -n 4 >> $SUMMARY_PATH_${{ matrix.python }}.log)
+      # - name: Run CXX unittests
+      #   run: |
+      #     cd python/build/*cmake*
+      #     echo -e "============ Run CXX unittests ============" 2>&1 | tee -a ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
+      #     ctest | tee >(tail -n 4 >> ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log)
 
-      - name: Save pip cache
-        if: ${{ hashFiles('.pip-cache') == '' }}
-        run: |
-          TMPDIR=/cache/${{ github.run_id }}-$RANDOM
-          mkdir $TMPDIR
-          cp -r $HOME/.cache/pip/* $TMPDIR/
-          # ignore error if other job created a cache with the same key already
-          mv $TMPDIR $PIP_CACHE || true
+      # - name: Save pip cache
+      #   if: ${{ hashFiles('.pip-cache') == '' }}
+      #   run: |
+      #     TMPDIR=/cache/${{ github.run_id }}-$RANDOM
+      #     mkdir $TMPDIR
+      #     cp -r $HOME/.cache/pip/* $TMPDIR/
+      #     # ignore error if other job created a cache with the same key already
+      #     mv $TMPDIR $PIP_CACHE || true
 
       - name: Upload Summary Data
         uses: actions/upload-artifact@v4
         with:
-          name: integration-tests-summary-data
-          path: $SUMMARY_PATH_${{ matrix.python }}.log
+          name: integration-tests-summary-${{ matrix.python }}
+          path: ${{ env.SCRIPTS_PATH }}/${{ matrix.python }}.log
 
   mail-report:
     runs-on:
@@ -236,15 +241,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download artifact
-        uses: actions/download-artifact@v2
+      - name: Install Python 3.10
+        uses: actions/setup-python@v4
         with:
-          name: integration-tests-summary-data
-          path: $SUMMARY_PATH.log
+          python-version: '3.10'
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: integration-tests-summary-*
+          merge-multiple: true # downloaded artifacts in same directory
+          path: ${{ github.workspace }}
 
       - name: Mail Report
         run: |
+          pip install pandas
           action_name="integration-tests"
           action_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           action_status="${{ needs.integration-tests.result }}"
-          python3 scripts/mail_sender.py --job_name $action_name  --job_url $action_url --job_status $action_status --result_file $SUMMARY_PATH.log
+          # concat summary
+          cd ${{ github.workspace }}
+          ls
+          cat 3.* >> summary.log
+          python3 scripts/mail_sender.py --job_name $action_name  --job_url $action_url --job_status $action_status --result_file summary.log

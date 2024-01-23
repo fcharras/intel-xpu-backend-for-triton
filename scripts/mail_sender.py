@@ -10,7 +10,7 @@ import pandas as pd
 parser = argparse.ArgumentParser(description="mail sender")
 parser.add_argument('--job_name', type=str, help='job name')
 parser.add_argument('--job_url', type=str, help='job url')
-parser.add_argument('--job_status', type=str, default='SUCCESS', choices=["SUCCESS", "FAILURE"], help='job status')
+parser.add_argument('--job_status', type=str, default='success', help='job status')
 parser.add_argument('--result_file', type=str, help='path to result files')
 args = parser.parse_args()
 
