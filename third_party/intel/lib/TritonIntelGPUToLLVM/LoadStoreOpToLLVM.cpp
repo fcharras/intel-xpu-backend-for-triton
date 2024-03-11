@@ -470,6 +470,8 @@ struct Load2DOpConversion
   using ConvertTritonGPUOpToLLVMPattern<
       triton::gpu::intel::Load2DOp>::ConvertTritonGPUOpToLLVMPattern;
 
+  using ValueTable = std::map<std::pair<int, int>, Value>;
+
   Load2DOpConversion(TritonGPUToLLVMTypeConverter &converter,
                      PatternBenefit benefit)
       : ConvertTritonGPUOpToLLVMPattern<triton::gpu::intel::Load2DOp>(converter,
@@ -523,39 +525,83 @@ struct Load2DOpConversion
           SmallVector<Value> multiDimWarpId =
               delinearize(rewriter, loc, warpId, warpsPerCTA, order);
 
-          Type load2DGenXType;
-          Type unpackType;
-          int64_t elemsPerLane;
+          int64_t numRepOuter = numReps[opIdx];
+          int64_t numRepK = numReps[(opIdx == 0) ? 1 : 0];
+          int64_t opaqueElemPerLane;
+          unsigned tileHeight;
+          unsigned elemsPerLanePerDotOp;
+          unsigned vBlocks = 1;
+          unsigned packedOuterDimPerLoad = 1;
+          unsigned packedKDimPerLoad = 1;
           SmallVector<int64_t> elemsPerInstr;
+          Type packedElemType =
+              opIdx == 0 ? type::i16Ty(ctx) : type::i32Ty(ctx);
           if (opIdx == 0) {
             auto shapeA = dpasLayout.getShapeA();
             elemsPerInstr = {shapeA[0], shapeA[1]};
-            elemsPerLane = product<int64_t>(elemsPerInstr) /
-                           product<unsigned>(getThreadsPerWarp(dpasLayout));
-            unpackType = LLVM::getFixedVectorType(
-                typeConverter->convertType(eltTy), elemsPerLane);
+            elemsPerLanePerDotOp =
+                product<int64_t>(elemsPerInstr) /
+                product<unsigned>(getThreadsPerWarp(dpasLayout));
+
+            unsigned maxPackedOuterDimPerLoad = 32 / elemsPerInstr[0];
+            packedOuterDimPerLoad =
+                std::min<unsigned>(maxPackedOuterDimPerLoad, numRepOuter);
+            // use the tileHeight to load multiple operand A in one time.
+            tileHeight = elemsPerInstr[0] * packedOuterDimPerLoad;
+
+            if (numRepK >= 2) {
+              // Double the block array length 2 to load operand A.
+              vBlocks = 2;
+              packedKDimPerLoad *= 2;
+            } else {
+              vBlocks = 1;
+            }
 
             // pack scalar to i16.
             auto opsPerChannel = dpasLayout.getOpsPerChannel();
-            elemsPerLane = opsPerChannel == 4 ? elemsPerLane / 2 : elemsPerLane;
-            load2DGenXType =
-                LLVM::getFixedVectorType(type::i16Ty(ctx), elemsPerLane);
-
+            opaqueElemPerLane = opsPerChannel == 4 ? elemsPerLanePerDotOp / 2
+                                                   : elemsPerLanePerDotOp;
+            opaqueElemPerLane =
+                opaqueElemPerLane * packedOuterDimPerLoad * packedKDimPerLoad;
           } else {
             auto shapeB = dpasLayout.getShapeB();
             elemsPerInstr = {shapeB[0], shapeB[1]};
-            elemsPerLane = product<int64_t>(elemsPerInstr) /
-                           product<unsigned>(getThreadsPerWarp(dpasLayout));
-            unpackType = LLVM::getFixedVectorType(
-                typeConverter->convertType(eltTy), elemsPerLane);
+            elemsPerLanePerDotOp =
+                product<int64_t>(elemsPerInstr) /
+                product<unsigned>(getThreadsPerWarp(dpasLayout));
 
-            // pack scalar to i32 for load.
+            if (numRepOuter >= 2) {
+              // Double the block array length to 2 to load operand B.
+              vBlocks = 2;
+              packedOuterDimPerLoad *= 2;
+            } else {
+              vBlocks = 1;
+            }
+
+            if (numRepK >= 2) {
+              // Double tileHeight to load operand B.
+              tileHeight = elemsPerInstr[0] * 2;
+              packedKDimPerLoad *= 2;
+            } else {
+              tileHeight = elemsPerInstr[0];
+            }
+
+            // pack scalar to i32.
             auto opsPerChannel = dpasLayout.getOpsPerChannel();
-            elemsPerLane = elemsPerLane / opsPerChannel;
-            load2DGenXType =
-                LLVM::getFixedVectorType(type::i32Ty(ctx), elemsPerLane);
+            opaqueElemPerLane = (elemsPerLanePerDotOp / opsPerChannel);
+            opaqueElemPerLane =
+                opaqueElemPerLane * packedOuterDimPerLoad * packedKDimPerLoad;
           }
 
+          Type load2DGenXType =
+              LLVM::getFixedVectorType(packedElemType, opaqueElemPerLane);
+          Type decomposedType = LLVM::getFixedVectorType(
+              packedElemType,
+              opaqueElemPerLane / packedOuterDimPerLoad / packedKDimPerLoad);
+          Type unpackType = LLVM::getFixedVectorType(
+              typeConverter->convertType(eltTy), elemsPerLanePerDotOp);
+
+          // Load the operand.
           // Outer dim, A is the M, B is the N. Inner dim, the K
           int outerDimWarpNum =
               std::min<int>(warpsPerCTA[opIdx],
@@ -570,26 +616,26 @@ struct Load2DOpConversion
                    colStride, base) =
               getValuesFromBlockPointerStruct(blockPtr, rewriter);
 
-          // Load the operand.
-          int64_t numRepOuter = numReps[opIdx];
-          int64_t numRepK = numReps[(opIdx == 0) ? 1 : 0];
+          // A dense stride for the replicates.
+          unsigned repOuterStride = elemsPerInstr[opIdx];
+          unsigned warpOuterStride = elemsPerInstr[opIdx] * numRepOuter;
+          unsigned repKStride = elemsPerInstr[opIdx == 0 ? 1 : 0];
 
-          SmallVector<Value> rets;
-          for (int outer = 0; outer < numRepOuter; ++outer) {
-            for (int k = 0; k < numRepK; ++k) {
+          ValueTable loadVals;
+          for (int outer = 0; outer < numRepOuter;
+               outer += packedOuterDimPerLoad) {
+            for (int k = 0; k < numRepK; k += packedKDimPerLoad) {
               Value offsetX, offsetY;
               if (opIdx == 0) {
                 // A
-                offsetY = add(
-                    mul(outerDimWarpId, i32_val(elemsPerInstr[opIdx])),
-                    i32_val(outer * outerDimWarpNum * elemsPerInstr[opIdx]));
-                offsetX = i32_val(k * elemsPerInstr[1]);
+                offsetY = add(mul(outerDimWarpId, i32_val(warpOuterStride)),
+                              i32_val(outer * repOuterStride));
+                offsetX = i32_val(k * repKStride);
               } else {
                 // B
-                offsetX = add(
-                    mul(outerDimWarpId, i32_val(elemsPerInstr[opIdx])),
-                    i32_val(outer * outerDimWarpNum * elemsPerInstr[opIdx]));
-                offsetY = i32_val(k * elemsPerInstr[0]);
+                offsetX = add(mul(outerDimWarpId, i32_val(warpOuterStride)),
+                              i32_val(outer * repOuterStride));
+                offsetY = i32_val(k * repKStride);
               }
               offsetX = add(offsetX, offsetBaseX);
               offsetY = add(offsetY, offsetBaseY);
@@ -616,32 +662,64 @@ struct Load2DOpConversion
                                          elemsPerInstr[1]),
                   /*tile_height*/
                   mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 32),
-                                         elemsPerInstr[0]),
+                                         tileHeight),
                   /*v_blocks*/
-                  mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 32), 1),
+                  mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 32),
+                                         vBlocks),
                   /*transpose*/
                   mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 1), 0),
                   /*vnni_transform*/
                   mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 1),
                                          opIdx == 0 ? /*A vnni=false*/ 0
                                                     : /*B vnni=true*/ 1));
-              Value loadVal = bitcast(load2dOp, unpackType);
-              rets.push_back(loadVal);
+
+              unsigned packedRowNum =
+                  opIdx == 0 ? packedOuterDimPerLoad : packedKDimPerLoad;
+              unsigned packedColNum =
+                  opIdx == 0 ? packedKDimPerLoad : packedOuterDimPerLoad;
+              unsigned offset = 0;
+              // The packed load is contiguous on the row.
+              for (int col = 0; col < packedColNum; col++) {
+                for (int row = 0; row < packedRowNum; row++) {
+
+                  Value loadVal = undef(decomposedType);
+                  for (int elemIdx = 0;
+                       elemIdx < opaqueElemPerLane / packedOuterDimPerLoad /
+                                     packedKDimPerLoad;
+                       elemIdx++) {
+                    Value loaded = extract_element(load2dOp, i32_val(offset++));
+                    loadVal = insert_element(loadVal, loaded, i32_val(elemIdx));
+                  }
+
+                  // Save the unpacked vals to the map;
+                  if (opIdx == 0) {
+                    loadVals[{outer + row, k + col}] =
+                        bitcast(loadVal, unpackType);
+                  } else {
+                    loadVals[{outer + col, k + row}] =
+                        bitcast(loadVal, unpackType);
+                  }
+                }
+              }
             }
           }
 
-          SmallVector<Value> loadedVals;
-          for (auto &ret : rets) {
-            VectorType loadTy = unpackType.cast<VectorType>();
-            for (size_t i = 0; i < loadTy.getNumElements(); ++i) {
-              Value loaded = extract_element(ret, i32_val(i));
-              loadedVals.push_back(loaded);
+          SmallVector<Value> unpackedLoadedVals;
+          for (int outer = 0; outer < numRepOuter; ++outer) {
+            for (int k = 0; k < numRepK; ++k) {
+              Value loadVal = loadVals.at({outer, k});
+              VectorType loadTy = loadVal.getType().cast<VectorType>();
+              for (int i = 0; i < loadTy.getNumElements(); ++i) {
+                auto val = extract_element(loadVal, i32_val(i));
+                unpackedLoadedVals.push_back(val);
+              }
             }
           }
 
           Type llvmResultStructTy = typeConverter->convertType(op.getType());
-          Value resultStruct = packLLElements(loc, typeConverter, loadedVals,
-                                              rewriter, llvmResultStructTy);
+          Value resultStruct =
+              packLLElements(loc, typeConverter, unpackedLoadedVals, rewriter,
+                             llvmResultStructTy);
           rewriter.replaceOp(op, {resultStruct});
 
           return success();
