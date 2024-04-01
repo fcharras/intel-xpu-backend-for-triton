@@ -33,8 +33,6 @@ def test_module_walk():
     Test the MLIR bindings exposed for the out-ot-tree walk.
     """
 
-    pytest.skip("FIXME: Incorrect results on XPU")
-
     def walk_fn(op):
         name = op.get_name()
         for i in range(op.get_num_results()):

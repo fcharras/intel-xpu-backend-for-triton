@@ -26,15 +26,6 @@ def test_op(Z, H, N_CTX, D_HEAD, dtype, causal, seq_par, device):
     if dtype == torch.bfloat16 and os.environ.get("TRITON_INTERPRET", "0") == "1":
         pytest.xfail("Flash attention bfloat16 not supported in interpreter mode")
 
-    if device == "xpu":
-        if D_HEAD != 16:
-            pytest.skip("FIXME: Enable larger problem sizes when tl.dot uses DPAS")
-
-    # Pytorch does not support Half data type for matmul operation hence the skip
-    if device == 'cpu':
-        if dtype == torch.float16 and os.environ.get("TRITON_INTERPRET", "0") == "1":
-            pytest.skip("FIXME: Half is not implemented in Pytorch")
-
     torch.manual_seed(20)
     q = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device=device).normal_(mean=0., std=0.5).requires_grad_()
     k = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device=device).normal_(mean=0., std=0.5).requires_grad_()

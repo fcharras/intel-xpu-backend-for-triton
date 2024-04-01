@@ -1015,9 +1015,6 @@ def test_math_divide_op(expr, num_ctas, device):
                           ('tl.math.div_rn(x,y)', '(x.to(tl.float64) / y.to(tl.float64)).to(tl.float32)')])
 @pytest.mark.parametrize("num_ctas", num_ctas_list)
 def test_precise_math(expr_prec, expr_ref, num_ctas, device):
-    if expr_prec == 'tl.math.sqrt_rn(x)':
-        pytest.skip("FIXME: Fail accuracy")
-
     @triton.jit
     def kernel(X, Y, OUT, OUT_REF, BLOCK: tl.constexpr):
         x = tl.load(X + tl.arange(0, BLOCK))
@@ -1383,9 +1380,6 @@ def test_atomic_rmw(op, dtype_x_str, mode, sem, device):
     if is_interpreter():
         if dtype_x_str == 'float16':
             pytest.skip("Only test atomic float16 ops on GPU")
-    if is_xpu():
-        if dtype_x_str == 'float16' and (mode != "min_neg" or sem != "acquire"):
-            pytest.skip("FIXME: Atomic RMW for float16 not yet supported by IGC")
 
     n_programs = 5
 
@@ -3056,9 +3050,6 @@ def test_dot(M, N, K, num_warps, col_a, col_b, epilogue, input_precision, in_dty
         if not is_hip() and kpack == 2:
             pytest.xfail("Skip duplicated tests on nv path")
 
-    if is_xpu() and (in_dtype == 'float8e4nv' or in_dtype == 'float8e5'):
-        pytest.skip("FIXME: float8e4nv and float8e5 fails to run on XPU")
-
     if is_cuda():
         torch.backends.cuda.matmul.allow_tf32 = input_precision == "tf32"
 
@@ -3250,8 +3241,6 @@ def test_dot(M, N, K, num_warps, col_a, col_b, epilogue, input_precision, in_dty
 @pytest.mark.parametrize("in_dtype_str, out_dtype_str", [('int8', 'int8'), ('float16', 'float16'),
                                                          ('float16', 'float32'), ('float32', 'float32')])
 def test_dot3d(B, num_warps, M, N, K, in_dtype_str, out_dtype_str, device):
-    if is_xpu():
-        pytest.skip("FIXME: Incorrect result on XPU")
     if is_hip():
         # hip does not support tf32 precision, so use ieee for all tests
         input_precision = "ieee"
@@ -3565,9 +3554,6 @@ def test_const(device, choose_const, constexpr, mode):
 @pytest.mark.parametrize("dtype_str", ['float32', 'float16'])
 def test_dot_without_load(dtype_str, device):
 
-    if is_interpreter() and dtype_str == "float16":
-        pytest.skip("FIXME: RuntimeError: \"addmm_impl_cpu_\" not implemented for 'Half'")
-
     @triton.jit
     def _kernel(out):
         a = GENERATE_TEST_HERE
@@ -3660,9 +3646,6 @@ def test_masked_load(dtype_str, size, size_diff, other, num_ctas, device):
 def test_masked_load_shared_memory(dtype, device):
 
     check_type_supported(dtype, device)  # bfloat16 on cc < 80 will not be tested
-
-    if is_interpreter() and dtype == torch.float16:
-        pytest.skip("FIXME: RuntimeError: \"addmm_impl_cpu_\" not implemented for 'Half'")
 
     M = 32
     N = 32
@@ -5108,11 +5091,6 @@ def test_fp8_dot_acc(in_type_str, low_precision_acc, device):
         if cc[0] >= 9 and in_type_str == "float8e4b15":
             pytest.skip("Dot op does not support fp8e4b15 on CUDA arch >= 90")
     check_type_supported(in_type_str, device)
-    if is_xpu() and in_type_str == "float8e4b15":
-        pytest.skip("FIXME: Fails to compile on XPU")
-
-    if is_interpreter():
-        pytest.skip("FIXME: RuntimeError: \"addmm_impl_cpu_\" not implemented for 'Half'")
 
     if is_xpu():
         # FIXME: revisit problem size once tl.dot is lowered to DPAS.
@@ -5310,8 +5288,6 @@ def test_static_range(device):
 def test_tl_range(device):
     if is_hip():
         pytest.skip("test_tl_range is not supported in HIP")
-    if is_interpreter():
-        pytest.skip("FIXME: RuntimeError: \"addmm_impl_cpu_\" not implemented for 'Half'")
     M, N, K = 64, 64, 512
     BLOCK_M, BLOCK_N, BLOCK_K = M, N, 64
     a = torch.randn((M, K), device=device, dtype=torch.float16)

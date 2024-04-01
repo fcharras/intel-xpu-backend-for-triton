@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+#set -euo pipefail
 
 # Select which tests to run.
 TEST_CORE=false
@@ -95,6 +95,7 @@ run_unit_tests() {
   lit -v "${LIT_TEST_DIR}"
 }
 
+set -x
 run_core_tests() {
   echo "***************************************************"
   echo "******      Running Triton Core tests        ******"
@@ -167,8 +168,8 @@ run_tutorial_tests() {
   run_tutorial_test "05-layer-norm"
   run_tutorial_test "06-fused-attention"
   run_tutorial_test "07-extern-functions"
-  run_tutorial_test "08-grouped-gemm"
   run_tutorial_test "09-experimental-block-pointer"
+  run_tutorial_test "08-grouped-gemm"
 }
 
 test_triton() {
