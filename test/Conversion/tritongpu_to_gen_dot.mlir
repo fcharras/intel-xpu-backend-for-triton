@@ -54,7 +54,7 @@ module attributes {"triton_gpu.num-ctas" = 1 : i32, "triton_gpu.num-warps" = 1 :
   // CHECK-LABEL: dot_i32_i8_i8_i32_2
   tt.func @dot_i32_i8_i8_i32_2(%a: tensor<8x64xi8, #dot_operand_a>, %b: tensor<64x16xi8, #dot_operand_b>, %c: tensor<8x16xi32, #dpas>) {
     // COM: 2 repetition along axis for K.
-    // CHECK: llvm.call @_Z36intel_sub_group_i8_i8_matrix_mad_k32Dv8_sDv8_iS0_(%{{.*}}, %{{.*}}, %{{.*}}) {passthrough = ["convergent"]} : (vector<8xi16>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
+    // CHECK-COUNT2: llvm.call @_Z36intel_sub_group_i8_i8_matrix_mad_k32Dv8_sDv8_iS0_(%{{.*}}, %{{.*}}, %{{.*}}) {passthrough = ["convergent"]} : (vector<8xi16>, vector<8xi32>, vector<8xi32>) -> vector<8xi32>
     %0 = tt.dot %a, %b, %c, inputPrecision = tf32 : tensor<8x64xi8, #dot_operand_a> * tensor<64x16xi8, #dot_operand_b> -> tensor<8x16xi32, #dpas>
     tt.return
   }
@@ -69,7 +69,7 @@ module attributes {"triton_gpu.num-ctas" = 1 : i32, "triton_gpu.num-warps" = 1 :
 module attributes {"triton_gpu.num-ctas" = 1 : i32, "triton_gpu.num-warps" = 1 : i32} {
   // CHECK-LABEL: dot_f32_tf32_tf32_f32_1
   tt.func @dot_f32_tf32_tf32_f32_1(%a: tensor<8x8xf32, #dot_operand_a>, %b: tensor<8x16xf32, #dot_operand_b>, %c: tensor<8x16xf32, #dpas>) {
-    // CHECK: llvm.call @llvm.genx.GenISA.sub.group.dpas.v8f32.v8f32.v4i32.v8i32
+    // CHECK: llvm.call @_Z43intel_sub_group_tf32_tf32_matrix_mad_k8_f32Dv4_fDv8_fS0_(%{{.*}}, %{{.*}}, %{{.*}}) {passthrough = ["convergent"]} : (vector<4xf32>, vector<8xf32>, vector<8xf32>) -> vector<8xf32>
     %0 = tt.dot %a, %b, %c, inputPrecision = tf32 : tensor<8x8xf32, #dot_operand_a> * tensor<8x16xf32, #dot_operand_b> -> tensor<8x16xf32, #dpas>
     tt.return
   }
@@ -85,7 +85,7 @@ module attributes {"triton_gpu.num-ctas" = 1 : i32, "triton_gpu.num-warps" = 1 :
   // CHECK-LABEL: dot_f32_tf32_tf32_f32_2
   tt.func @dot_f32_tf32_tf32_f32_2(%a: tensor<8x8xf32, #dot_operand_a>, %b: tensor<8x32xf32, #dot_operand_b>, %c: tensor<8x32xf32, #dpas>) {
     // COM: 2 repetitions along axis for N.
-    // CHECK-COUNT-2: llvm.call @llvm.genx.GenISA.sub.group.dpas.v8f32.v8f32.v4i32.v8i32
+    // CHECK-COUNT-2: llvm.call @_Z43intel_sub_group_tf32_tf32_matrix_mad_k8_f32Dv4_fDv8_fS0_(%{{.*}}, %{{.*}}, %{{.*}}) {passthrough = ["convergent"]} : (vector<4xf32>, vector<8xf32>, vector<8xf32>) -> vector<8xf32>
     %0 = tt.dot %a, %b, %c, inputPrecision = tf32 : tensor<8x8xf32, #dot_operand_a> * tensor<8x32xf32, #dot_operand_b> -> tensor<8x32xf32, #dpas>
     tt.return
   }
