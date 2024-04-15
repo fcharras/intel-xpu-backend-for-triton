@@ -41,6 +41,10 @@ createTritonIntelGPUPipelinePass(int numStages = 2,
                                  triton::gpu::intel::DeviceArch arch =
                                      triton::gpu::intel::DeviceArch::UNKNOWN);
 
+std::unique_ptr<Pass> createTritonIntelGPUMaterializeBlockPointerPass(
+    triton::gpu::intel::DeviceArch arch =
+        triton::gpu::intel::DeviceArch::UNKNOWN);
+
 } // namespace intel
 } // namespace gpu
 } // namespace triton
