@@ -160,7 +160,9 @@ def TritonIntelGPURewriteTensorPointer : Pass<"tritonintelgpu-rewrite-tensor-poi
 
   let constructor = "mlir::triton::gpu::intel::createTritonIntelGPURewriteTensorPointerPass()";
 
-  let dependentDialects = ["mlir::triton::TritonDialect"];
+  let dependentDialects = ["mlir::triton::TritonDialect",
+                           "mlir::triton::gpu::TritonGPUDialect"
+                           ];
 }
 
 def TritonIntelGPUPrefetchBlock : Pass<"tritonintelgpu-prefetch-block", "mlir::ModuleOp"> {

@@ -65,6 +65,10 @@ void init_triton_intel_passes_ttgpuir(py::module &&m) {
       },
       py::arg("pm"), py::arg("numStages"),
       py::arg("arch") = mlir::triton::gpu::intel::DeviceArch::UNKNOWN);
+  m.def("add_rewrite_tensor_pointer", [](mlir::PassManager &pm) {
+    pm.addPass(mlir::triton::gpu::intel::
+                   createTritonIntelGPURewriteTensorPointerPass());
+  });
 }
 
 void init_triton_intel_passes_ttnvgpuir(py::module &&m) {
