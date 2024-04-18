@@ -119,6 +119,7 @@ class XPUBackend(BaseBackend):
         pm = ir.pass_manager(mod.context)
         pm.enable_debug()
         passes.common.add_inliner(pm)
+        # passes.ttir.add_rewrite_tensor_pointer(pm)
         passes.ttir.add_combine(pm)
         passes.common.add_canonicalizer(pm)
         passes.ttir.add_reorder_broadcast(pm)
@@ -143,17 +144,27 @@ class XPUBackend(BaseBackend):
         # TODO(Qingyi): Move PlanCTAPass to the front of CoalescePass
         intel.passes.ttnvgpuir.add_plan_cta(pm, cluster_info)
         passes.ttgpuir.add_remove_layout_conversions(pm)
-        passes.ttgpuir.add_optimize_thread_locality(pm)
-        intel.passes.ttgpuir.add_accelerate_matmul(pm, device_arch)
+
+        # Intel accelerate matmul with DPAS
+        intel.passes.ttgpuir.add_accelerate_matmul(pm, intel.passes.ttgpuir.DEVICE_ARCH.PVC)
+        # Intel backward combine layout
+        intel.passes.ttgpuir.add_remove_layout_conversions(pm)
+        # Intel 2D load
+        intel.passes.ttgpuir.add_materialize_block_pointer(pm, intel.passes.ttgpuir.DEVICE_ARCH.PVC)
         passes.ttgpuir.add_remove_layout_conversions(pm)
+        # Intel rewrite tensor pointer
+        # rewriter all tt.load with block ptr to the legacy pointer arthi
         intel.passes.ttgpuir.add_rewrite_tensor_pointer(pm)
         passes.ttgpuir.add_remove_layout_conversions(pm)
+        # memory coalesce optimize to the tt.load/tt.store
         passes.ttgpuir.add_coalesce(pm)
+        passes.ttgpuir.add_remove_layout_conversions(pm)
+        passes.ttgpuir.add_optimize_thread_locality(pm)
         if opt.optimize_epilogue:
             passes.ttgpuir.add_optimize_epilogue(pm)
         passes.ttgpuir.add_optimize_dot_operands(pm)
         passes.common.add_cse(pm)
-        passes.ttgpuir.add_prefetch(pm)
+        intel.passes.ttgpuir.add_tritonintelgpu_pipe_line_pass(pm, opt.num_stages, intel.passes.ttgpuir.DEVICE_ARCH.PVC)
         passes.ttgpuir.add_optimize_dot_operands(pm)
         passes.ttgpuir.add_remove_layout_conversions(pm)
         passes.ttgpuir.add_reduce_data_duplication(pm)
