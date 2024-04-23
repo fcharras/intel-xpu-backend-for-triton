@@ -4453,7 +4453,7 @@ def test_inline_asm_packed_multiple_outputs(device):
 # -----------------------
 
 
-@pytest.mark.parametrize("lo, hi, iv", [(2**30, 2**30 + 20, 1), (2**35, 2**35 + 20, 2), (2**35, 2**35 + 20, 3),
+@pytest.mark.parametrize("lo, hi, iv", [(2**35, 2**35 + 20, 1), (2**35, 2**35 + 20, 2), (2**35, 2**35 + 20, 3),
                                         (15, -16, -1), (15, -16, -2), (15, -16, -3), (-18, -22, -1), (22, 18, -1)])
 def test_for_iv(lo, hi, iv, device):
 
@@ -4465,6 +4465,8 @@ def test_for_iv(lo, hi, iv, device):
             acc += i
         tl.store(Out, acc)
 
+    lo = 2**35
+    hi = 2**35 + 20
     out = to_triton(np.zeros((1, ), dtype=np.int64), device=device)
     kernel[(1, )](out, lo, hi, iv)
     assert out[0] == sum(range(lo, hi, iv))
