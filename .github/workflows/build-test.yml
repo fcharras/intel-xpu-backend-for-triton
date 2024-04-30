@@ -69,6 +69,8 @@ jobs:
         python:
           - "3.9"
           - "3.10"
+          - "3.11"
+          - "3.12"
     defaults:
       run:
         shell: bash -noprofile --norc -eo pipefail -c "source /home/runner/intel/oneapi/setvars.sh > /dev/null; source {0}"
