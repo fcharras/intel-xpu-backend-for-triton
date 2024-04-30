@@ -70,7 +70,7 @@ jobs:
           - "3.9"
           - "3.10"
           - "3.11"
-          #- "3.12"
+          - "3.12"
     defaults:
       run:
         shell: bash -noprofile --norc -eo pipefail -c "source /home/runner/intel/oneapi/setvars.sh > /dev/null; source {0}"
@@ -103,6 +103,13 @@ jobs:
 
       - name: Setup IPEX
         uses: ./.github/actions/setup-ipex
+
+        # Python 3.12 requires cython
+        # https://github.com/intel/intel-xpu-backend-for-triton/issues/1004
+      - name: Install cython for Python 3.12
+        if: matrix.python == '3.12'
+        run: |
+          pip install cython
 
       - name: Build Triton
         run: |
