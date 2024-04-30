@@ -453,7 +453,7 @@ class _attention(torch.autograd.Function):
         BLOCK_M = 128
         BLOCK_N = 64 if Lk <= 64 else 32
         num_stages = 4 if Lk <= 64 else 3
-        num_warps = 4
+        num_warps = 32
         stage = 3 if causal else 1
         # Tuning for H100
         if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 9:
@@ -485,7 +485,8 @@ class _attention(torch.autograd.Function):
             BLOCK_DMODEL=Lk,  #
             STAGE=stage,  #
             num_warps=num_warps,  #
-            num_stages=num_stages  #
+            num_stages=num_stages,  #
+            threads_per_warp=16
         )
 
         ctx.save_for_backward(q, k, v, o, M)
@@ -505,7 +506,7 @@ class _attention(torch.autograd.Function):
         dv = torch.empty_like(v)
         BATCH, N_HEAD, N_CTX = q.shape[:3]
         PRE_BLOCK = 128
-        NUM_WARPS, NUM_STAGES = 4, 5
+        NUM_WARPS, NUM_STAGES = 32, 5
         BLOCK_M1, BLOCK_N1, BLOCK_M2, BLOCK_N2 = 32, 128, 128, 32
         BLK_SLICE_FACTOR = 2
         RCP_LN2 = 1.4426950408889634  # = 1.0 / ln(2)
@@ -532,7 +533,8 @@ class _attention(torch.autograd.Function):
             BLK_SLICE_FACTOR=BLK_SLICE_FACTOR,  #
             BLOCK_DMODEL=ctx.BLOCK_DMODEL,  #
             num_warps=NUM_WARPS,  #
-            num_stages=NUM_STAGES  #
+            num_stages=NUM_STAGES,  #
+            threads_per_warp=16
         )
 
         return dq, dk, dv, None, None
