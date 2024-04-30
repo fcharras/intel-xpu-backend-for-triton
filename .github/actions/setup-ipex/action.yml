@@ -64,6 +64,10 @@ runs:
       shell: bash
       run: |
         source ${{ inputs.oneapi }}/setvars.sh
+        # IPEX requires installing pkg_resources with Python 3.12
+        if [[ $PYTHON_VERSION == "3.12" ]]; then
+          pip install setuptools
+        fi
         pip install intel-extension-for-pytorch/dist/*.whl
         python -c "import torch;import intel_extension_for_pytorch as ipex;print(ipex.__version__)"
 
