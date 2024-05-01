@@ -2,6 +2,11 @@ name: Build and test
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_test_reports:
+        description: Upload test reports
+        type: boolean
+        default: false
   pull_request:
     branches:
       - llvm-target
@@ -114,9 +119,9 @@ jobs:
 
       - name: Create directory for tests reports
         run: |
-          mkdir ~/reports
+          mkdir reports
           echo "TRITON_TEST_REPORTS=true" >> $GITHUB_ENV
-          echo "TRITON_TEST_REPORTS_DIR=$HOME/reports" >> $GITHUB_ENV
+          echo "TRITON_TEST_REPORTS_DIR=$GITHUB_WORKSPACE/reports" >> $GITHUB_ENV
 
       - name: Run core tests
         run: |
@@ -157,7 +162,7 @@ jobs:
           source ./scripts/pytest-utils.sh
           cd python/test/regression
           TRITON_TEST_SUITE=regression \
-            python3 -m pytest --junitxml=~/reports/regression.xml -vvv -s --device xpu . --reruns 10 --ignore=test_performance.py
+            pytest -vvv -s --device xpu . --reruns 10 --ignore=test_performance.py
 
       - name: Run XPU python tests
         run: |
@@ -204,8 +209,8 @@ jobs:
 
       - name: Pass rate
         run: |
-          python3 scripts/pass_rate.py --reports ~/reports
-          python3 scripts/pass_rate.py --reports ~/reports --json > pass_rate.json
+          python3 scripts/pass_rate.py --reports reports
+          python3 scripts/pass_rate.py --reports reports --json > pass_rate.json
 
       - name: Upload pass rate report
         # upload reports only for the default branch
@@ -214,3 +219,10 @@ jobs:
         with:
           name: pass_rate-${{ join(matrix.*, '-') }}
           path: pass_rate.json
+
+      - name: Upload test reports
+        if: inputs.upload_test_reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ join(matrix.*, '-') }}
+          path: reports
