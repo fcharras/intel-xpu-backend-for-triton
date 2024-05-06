@@ -86,6 +86,15 @@ if [ "$TRITON_TEST_WARNING_REPORTS" == true ]; then
 fi
 
 source $SCRIPTS_DIR/pytest-utils.sh
+if [ "$TRITON_TEST_REPORTS" == true ]; then
+    capture_runtime_env
+    source $SCRIPTS_DIR/capture-hw-details.sh --quiet
+    echo "$LIBIGC1_VERSION" > $TRITON_TEST_REPORTS_DIR/libigc1_version.txt
+    echo "$LEVEL_ZERO_VERSION" > $TRITON_TEST_REPORTS_DIR/level-zero_version.txt
+    echo "$AGAMA_VERSION" > $TRITON_TEST_REPORTS_DIR/agama_driver_version.txt
+    echo "$GPU_DEVICE" > $TRITON_TEST_REPORTS_DIR/gpu.txt
+fi
+
 $SKIP_DEPS || $SCRIPTS_DIR/compile-pytorch-ipex.sh --pinned $ARGS
 
 if [ ! -d "$TRITON_PROJ_BUILD" ]
