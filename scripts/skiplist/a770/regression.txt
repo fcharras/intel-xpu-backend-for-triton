@@ -1,0 +1,9 @@
+# https://github.com/intel/intel-xpu-backend-for-triton/issues/1084
+test/regression/test_cast_matmul.py::test_cast_matmul[128-128-128-float32-float64-float16]
+test/regression/test_cast_matmul.py::test_cast_matmul[128-128-128-float32-float64-float32]
+test/regression/test_cast_matmul.py::test_cast_matmul[128-128-128-float64-float32-float16]
+test/regression/test_cast_matmul.py::test_cast_matmul[128-128-128-float64-float32-float32]
+test/regression/test_cast_matmul.py::test_cast_matmul[1280-768-1024-float32-float64-float16]
+test/regression/test_cast_matmul.py::test_cast_matmul[1280-768-1024-float32-float64-float32]
+test/regression/test_cast_matmul.py::test_cast_matmul[1280-768-1024-float64-float32-float16]
+test/regression/test_cast_matmul.py::test_cast_matmul[1280-768-1024-float64-float32-float32]
