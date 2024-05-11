@@ -50,3 +50,50 @@ if [ "$QUIET" = false ]; then
     echo "AGAMA_VERSION=$AGAMA_VERSION"
     echo "GPU_DEVICE=$GPU_DEVICE"
 fi
+
+agama_to_driver_type() {
+    local lts=(803)
+    local rolling=(821 775)
+
+    local agama=$1
+    local found="false"
+
+    for item in "${lts[@]}"; do
+        if [[ "$agama" -eq "$item" ]]; then
+            echo "lts"
+            found="true"
+            break
+        fi
+    done
+
+    if [[ "$found" == "false" ]]; then
+        for item in "${rolling[@]}"; do
+            if [[ "$agama" -eq "$item" ]]; then
+                echo "rolling"
+                found="true"
+                break
+            fi
+        done
+    fi
+
+    if [ "$found" == "false" ]; then
+        echo "Driver type is unknown"
+    fi
+}
+
+xpu_is_pvc() {
+    local lables=("GPU Max 1100" "GPU Max 1550")
+    local xpu=$1
+    local found="false"
+
+    for device in "${lables[@]}"; do
+        if echo "$xpu" | grep -q "$device"; then
+            found="true"
+            break
+        fi
+    done
+    echo "$found"
+}
+
+GPU_DRIVER_TYPE=$(agama_to_driver_type "$AGAMA_VERSION")
+IS_PVC=$(xpu_is_pvc "$GPU_DEVICE")
