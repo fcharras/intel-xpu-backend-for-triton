@@ -33,6 +33,12 @@ void softmax_forward(void *input, void *output, sycl::queue &queue) {
   cl::sycl::range<3> local_range{1, subgroup_range_m, subgroup_range_n};
   cl::sycl::nd_range<3> nd_range(group_range * local_range, local_range);
 
+  std::cout << " group_num_x: " << group_range_n << ",  group_num_y: " << group_range_m << "\n";
+  std::cout << " group_size_x: " << subgroup_range_n << ",  group_size_y: " << subgroup_range_m << std::endl;
+  std::cout << " mat_m: " << mat_m << ",  mat_n: " << mat_n << "\n";
+  std::cout << " wg_m: " << wg_m << ",  wg_n: " << wg_n << "\n";
+  std::cout << " sg_m: " << sg_m << ",  sg_n: " << sg_n<< "\n";
+
   auto context = queue.get_info<info::queue::context>();
   std::vector<kernel_id> kernelId = {get_kernel_id<Config>()};
 
@@ -52,6 +58,7 @@ void softmax_forward(void *input, void *output, sycl::queue &queue) {
   auto exeBundle =
       get_kernel_bundle<bundle_state::executable>(context, kernelId);
   try {
+    // const auto start = std::chrono::system_clock::now();
     auto e_softmax_fwd = queue.submit([&](handler &cgh) {
       cgh.use_kernel_bundle(exeBundle);
       cgh.parallel_for<Config>(nd_range, [=](nd_item<3> item) KERNEL_MAIN {
@@ -70,6 +77,24 @@ void softmax_forward(void *input, void *output, sycl::queue &queue) {
                               sqrt_dk_inv);
       });
     });
+    // const auto end = std::chrono::system_clock::now();
+    // double elapsed_time_ms =
+    //     std::chrono::duration<double, std::milli>(end - start).count();
+    e_softmax_fwd.wait();
+    double time = (e_softmax_fwd.template get_profiling_info<
+                       info::event_profiling::command_end>() -
+                   e_softmax_fwd.template get_profiling_info<
+                       info::event_profiling::command_start>()) /
+                  (1000.0f * 1000.0f * 1000.f);
+
+    printf(
+        "M: %d, Data_type_in: %d, Bandwidth: GB/S: %f \n", mat_m,sizeof(data_type_in),
+        ((mat_m * mat_n * sizeof(data_type_in) * 2 / 1e9) / time));
+    // printf("GFLOPS: %f \n", ((2 * matrix_m * matrix_k * matrix_n)/1e9)/
+    // time); printf("Bandwidth: GB/S: %f \n", ((((matrix_m * matrix_k) *
+    // sizeof(data_type_a) + (matrix_m * matrix_n) * sizeof(data_type_c) +
+    // (matrix_n * matrix_k) * sizeof(data_type_b)) /1e9)/ time));
+
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
   }

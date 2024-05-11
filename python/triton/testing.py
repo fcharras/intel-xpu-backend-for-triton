@@ -131,8 +131,10 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, fast_flu
     estimate_ms = ((end_time.timestamp() - start_time.timestamp()) * 1000) / 5
 
     # compute number of warmup and repeat
-    n_warmup = max(1, int(warmup / estimate_ms))
-    n_repeat = max(1, int(rep / estimate_ms))
+    # n_warmup = max(1, int(warmup / estimate_ms))
+    # n_repeat = max(1, int(rep / estimate_ms))
+    n_warmup = warmup
+    n_repeat = rep
     start_times = [datetime for i in range(n_repeat)]
     end_times = [datetime for i in range(n_repeat)]
 
@@ -149,6 +151,7 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, fast_flu
                 x.grad = None
         # we clear the L2 cache before each run
         cache.zero_()
+        synchronize()
         # record time of `fn`
         start_times[i] = datetime.now()
         fn()
