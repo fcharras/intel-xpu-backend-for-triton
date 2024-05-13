@@ -7,16 +7,16 @@ source env.sh
 rm -rf result.csv
 echo "M/N/K,oneDNN(peak),Triton(peak)" | tee result.csv
 
-for ((i=1; i<=16; i++))
+for ((i=0; i<=24; i++))
 do
-    shape_size=$((256 * $i))
+    shape_size=$((1024 + 128 * $i))
     echo "shape size: $shape_size"
     
     rm -rf log.txt
 
     # update shape size in driver.py and 09-experimental-block-pointer.py
     sed -i "s/for i in \[[0-9]*\]\]/for i in \[$i\]\]/g" 09-experimental-block-pointer.py
-    sed -i "s/float M = 256 \* [0-9]*;/float M = 256 \* $i;/g" ../../third_party/intel/backend/driver.py
+    sed -i "s/128 \* [0-9]*;/128 \* $i;/g" ../../third_party/intel/backend/driver.py
 
 
     python 09-experimental-block-pointer.py 2>&1 | tee log.txt
