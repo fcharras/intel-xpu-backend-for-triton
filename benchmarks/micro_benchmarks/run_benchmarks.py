@@ -1,6 +1,7 @@
 from activation import gelu, relu, silu, swiglu
 from embedding import absolute_sinusoidal as sinusoidal
 from normalization import deepnorm, layernorm, rmsnorm, softmax
+from conversion import float_conversion
 
 if __name__ == "__main__":
 
@@ -15,3 +16,5 @@ if __name__ == "__main__":
     layernorm.benchmark.run(print_data=True)
     rmsnorm.benchmark.run(print_data=True)
     softmax.benchmark.run(print_data=True)
+
+    float_conversion.benchmark.run(print_data=True)
