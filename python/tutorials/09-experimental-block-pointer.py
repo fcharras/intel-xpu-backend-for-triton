@@ -247,15 +247,7 @@ def matmul(a, b):
     triton.testing.Benchmark(
         # argument names to use as an x-axis for the plot
         x_names=['M', 'K', 'N'],
-        # x_vals=[[1024 + 128 * i, 1024 + 128 * i, 1024 + 128 * i] for i in [24]],  # different possible values for `x_name`
-        x_vals=[
-        # [4096,4096,4096],
-        # [8192,8192,8192],
-        [1, 5120, 13824],
-        # [1024,28672,8192],
-        # [3072,4096,3072],
-        # [4,4096,12288],
-        ],  # different possible values for `x_name`
+        x_vals=[[4096, 4096, 4096]],
         line_arg='provider',
         # argument name whose value corresponds to a different line in the plot
         # possible values for `line_arg``
