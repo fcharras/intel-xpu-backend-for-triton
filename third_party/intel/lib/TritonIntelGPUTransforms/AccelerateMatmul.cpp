@@ -8,9 +8,9 @@
 #include "intel/include/Dialect/TritonIntelGPU/Transforms/Utility.h"
 
 #include "triton/Analysis/Utility.h"
+#include "triton/Conversion/TritonToTritonGPU/TritonToTritonGPUPass.h"
 #include "triton/Dialect/Triton/IR/Utility.h"
 #include "triton/Dialect/TritonGPU/IR/Dialect.h"
-#include "triton/Conversion/TritonToTritonGPU/TritonToTritonGPUPass.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -120,9 +120,17 @@ public:
 
     ModuleOp mod = op->getParentOfType<mlir::ModuleOp>();
     assert(mod->hasAttr(triton::AttrTargetName));
-    StringAttr archAttr = cast<StringAttr>(mod->getAttr(triton::AttrTargetName));
+    StringAttr archAttr =
+        cast<StringAttr>(mod->getAttr(triton::AttrTargetName));
 
-    DeviceArch arch = [archAttr] { if (archAttr == "PVC")  return DeviceArch::PVC;  else  if (archAttr == "ATS") return DeviceArch::ATS; else return DeviceArch::UNKNOWN; }();
+    DeviceArch arch = [archAttr] {
+      if (archAttr == "PVC")
+        return DeviceArch::PVC;
+      else if (archAttr == "ATS")
+        return DeviceArch::ATS;
+      else
+        return DeviceArch::UNKNOWN;
+    }();
 
     if (!supportDPAS(dotOp, arch))
       return failure();
@@ -130,7 +138,6 @@ public:
     // Create DPAS encoding for the given number of warps
     ArrayRef<int64_t> retShape = oldRetType.getShape();
     unsigned numWarps = ttg::TritonGPUDialect::getNumWarps(mod);
-
 
     // operands
     Value a = dotOp.getA();
