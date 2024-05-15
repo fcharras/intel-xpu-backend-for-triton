@@ -124,9 +124,9 @@ public:
         cast<StringAttr>(mod->getAttr(triton::AttrTargetName));
 
     DeviceArch arch = [archAttr] {
-      if (archAttr == "PVC")
+      if (archAttr == "xpu:PVC")
         return DeviceArch::PVC;
-      else if (archAttr == "ATS")
+      else if (archAttr == "xpu:ATS")
         return DeviceArch::ATS;
       else
         return DeviceArch::UNKNOWN;
