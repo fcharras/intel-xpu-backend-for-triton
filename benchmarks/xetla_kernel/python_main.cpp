@@ -23,11 +23,13 @@ sycl::queue get_current_sycl_queue() {
 template <typename T>
 at::Tensor softmax(const at::Tensor &input, const int64_t dim) {
   CHECK_INPUT(input);
+  RECORD_FUNCTION("xetla softmax", {input});
 
   auto output = at::empty_like(input);
 
   auto queue = get_current_sycl_queue();
-  softmax_forward<T>(input.data_ptr(), output.data_ptr(), queue);
+  auto evt = softmax_forward<T>(input.data_ptr(), output.data_ptr(), queue);
+  xpu::profiler_record("xetla kernel", evt);
   return output;
 }
 
