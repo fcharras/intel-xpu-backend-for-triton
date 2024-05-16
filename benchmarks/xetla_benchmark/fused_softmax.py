@@ -16,6 +16,8 @@ import triton.language as tl
 import xetla_benchmark
 import xetla_benchmark.xetla_kernel as xetla_kernel
 
+becnmark_suit = xetla_benchmark  # triton.testing
+
 
 def is_xpu():
     return triton.runtime.driver.active.get_current_target().backend == "xpu"
@@ -99,8 +101,8 @@ def valid_correct(str, fn1, fn2):
         print("❌ {} output differ".format(str))
 
 
-@triton.testing.perf_report(
-    triton.testing.Benchmark(
+@becnmark_suit.perf_report(
+    becnmark_suit.Benchmark(
         x_names=['N'],  # argument names to use as an x-axis for the plot
         x_vals=[256, 1024, 2048, 4096],  # different possible values for `x_name`
         line_arg='provider',  # argument name whose value corresponds to a different line in the plot
@@ -125,23 +127,23 @@ def benchmark(M, N, provider):
     x = torch.randn(M, N, device='xpu', dtype=torch.bfloat16)
     quantiles = [0.5, 0.2, 0.8]
     if provider == 'torch-native':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.softmax(x, axis=-1), quantiles=quantiles, warmup=10,
-                                                     rep=10)
+        ms, min_ms, max_ms = becnmark_suit.do_bench(lambda: torch.softmax(x, axis=-1), quantiles=quantiles, warmup=10,
+                                                    rep=10)
     if provider == 'triton':
         triton_fn = lambda: softmax(x)
         torch_fn = lambda: torch.softmax(x, axis=-1)
-        valid_correct("triton to torch", triton_fn, torch_fn)
-        ms, min_ms, max_ms = triton.testing.do_bench(triton_fn, quantiles=quantiles, warmup=10, rep=10)
+        becnmark_suit.assert_close(triton_fn(), torch_fn(), err_msg="triton to torch")
+        ms, min_ms, max_ms = becnmark_suit.do_bench(triton_fn, quantiles=quantiles, warmup=10, rep=10)
 
     if provider == 'torch-jit':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: naive_softmax(x), quantiles=quantiles, warmup=10, rep=10)
+        ms, min_ms, max_ms = becnmark_suit.do_bench(lambda: naive_softmax(x), quantiles=quantiles, warmup=10, rep=10)
     if provider == 'xetla':
         name = "softmax_shape_{}_{}".format(N, N)
         func = getattr(xetla_kernel, name)
         xetla_fn = lambda: func(x, 0)
         torch_fn = lambda: torch.softmax(x, axis=-1)
-        valid_correct("xetla to torch", xetla_fn, torch_fn)
-        ms, min_ms, max_ms = triton.testing.do_bench(xetla_fn, quantiles=quantiles, warmup=10, rep=10)
+        # becnmark_suit.assert_close(xetla_fn(), torch_fn(), err_msg="xetla to torch")
+        ms, min_ms, max_ms = becnmark_suit.do_bench(xetla_fn, quantiles=quantiles, warmup=10, rep=10)
     gbps = lambda ms: 2 * x.nelement() * x.element_size() * 1e-9 / (ms * 1e-3)
     return gbps(ms), gbps(max_ms), gbps(min_ms)
 
