@@ -263,8 +263,8 @@ def matmul(a, b):
     ))
 def benchmark(M, N, K, provider):
     torch.manual_seed(0)
-    a = torch.randn((M, K), device='xpu', dtype=torch.float16)
-    b = torch.randn((K, N), device='xpu', dtype=torch.float16)
+    a = torch.randn((M, K), device='xpu', dtype=torch.bfloat16)
+    b = torch.randn((K, N), device='xpu', dtype=torch.bfloat16)
     quantiles = [0.5, 0.2, 0.8]
 
     # calculate tflops for oneDNN kernel
