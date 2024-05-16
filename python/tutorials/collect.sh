@@ -28,7 +28,7 @@ python 09-experimental-block-pointer.py 2>&1 | tee result.txt
 
 Triton_tflops_max=`grep "Triton Peak TFlops" result.txt | awk '{print $NF}' | awk 'BEGIN{max=0} {if ($1>max) max=$1} END{print max}'`
 Triton_tflops_min=`grep "Triton Peak TFlops" result.txt | awk '{print $NF}' | awk 'BEGIN{min=9999} {if ($1<min) min=$1} END{print min}'`
-Triton_tflops_avg=$(grep "Triton Peak TFlops" result.txt | awk '{print $NF}' | awk -v max="$Triton_max" -v min="$Triton_min" '{sum+=$1} END{print (sum-max-min)/NR}')
+Triton_tflops_avg=$(grep "Triton Peak TFlops" result.txt | awk '{print $NF}' | awk -v max="$Triton_tflops_max" -v min="$Triton_tflops_min" '{sum+=$1} END{print (sum-max-min)/NR}')
 
 Triton_gbs_max=`grep "Triton Peak HBM" result.txt | awk '{print $NF}' | awk 'BEGIN{max=0} {if ($1>max) max=$1} END{print max}'`
 Triton_gbs_min=`grep "Triton Peak HBM" result.txt | awk '{print $NF}' | awk 'BEGIN{min=9999} {if ($1<min) min=$1} END{print min}'`
